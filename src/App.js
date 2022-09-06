@@ -2,14 +2,33 @@
 
     document.addEventListener('DOMContentLoaded', function() {
 
+        let browserWidth = document.body.clientWidth;
         let container = document.querySelector('.dup-carousel')
         let innerContainer = document.querySelector('.dup-carousel-inner');
-        let slideArray = document.querySelectorAll('.dup-carousel-item');
-        let slideOnScreen = 5;
+        let initalSlideArray = document.querySelectorAll('.dup-carousel-item');
+        let activeSlideArray
+        let slideOnScreen = 3;
         let slideTransitionTime = 0.4;
         let slideIsAnimated = false;
         let pos = 0;
         let currentScrollAmount = 0;
+
+
+        // let breakpoints = []
+        let breakpoints = [
+            {
+                size: 0,
+                slideOnScreen: 1
+            },
+            {
+                size: 768,
+                slideOnScreen: 3
+            },
+            {
+                size: 1400,
+                slideOnScreen: 5
+            }
+        ]
 
         let dragging = false;
         let dragAmountToNextSlide = 100;
@@ -63,9 +82,9 @@
             //this prevents 'elastic bouncing' effect where the slides jump back to the beginning of a slide and then moves to the next slide
             async function dragOffset() {
                 return new Promise((resolve, reject) => {
-                    for(let i = 0; i < slideArray.length; i++) {
-                        doTranslate(slideArray[i], currentScrollAmount, '%', (xOffset*.2), 'px');
-                        if(i === slideArray.length-1) {
+                    for(let i = 0; i < activeSlideArray.length; i++) {
+                        doTranslate(activeSlideArray[i], currentScrollAmount, '%', (xOffset*.2), 'px');
+                        if(i === activeSlideArray.length-1) {
                             dragCleanup(false)
                             setTimeout(function(){resolve()},(24),resolve)
                         }
@@ -103,17 +122,18 @@
                 }
                 doTranslate(innerContainer, 0, 'px', 0, 'px')
 
+
             }
 
             //checks to see if the user dragged through the drag threshold
             if(dragging) {
                 if(xOffset < -(dragAmountToNextSlide)) {
-                    removeSlideAnimation(slideArray)
+                    removeSlideAnimation(activeSlideArray)
                     .then(() => {
                         dragOffset()
                         .then(() => {
 
-                            addSlideAnimation(slideArray)
+                            addSlideAnimation(activeSlideArray)
                             .then(()=>{
                                 goNext()
                             })
@@ -124,12 +144,12 @@
 
                 }
                 else if(xOffset > dragAmountToNextSlide) {
-                    removeSlideAnimation(slideArray)
+                    removeSlideAnimation(activeSlideArray)
                     .then(() => {
                         dragOffset()
                         .then(() => {
 
-                            addSlideAnimation(slideArray)
+                            addSlideAnimation(activeSlideArray)
                             .then(()=>{
                                 goPrev()
                             })
@@ -140,6 +160,8 @@
                 } else {
                     dragCleanup(true);
                 }
+
+                
 
             }
 
@@ -200,11 +222,11 @@
 
             return new Promise((resolve, reject) => {
 
-                removeSlideAnimation(slideArray)
+                removeSlideAnimation(activeSlideArray)
                 .then(() => {
 
                     if(direction === 'prev') {
-                        pos=(slideArray.length-1)-(slideOnScreen-1)
+                        pos=(activeSlideArray.length-1)-(slideOnScreen-1)
                     }
                     if(direction === 'next') {
                         pos=0
@@ -212,7 +234,7 @@
                     slide(null, 1, teleportOffset)
                     .then(() => {
                         teleportOffset = 0
-                        addSlideAnimation(slideArray)
+                        addSlideAnimation(activeSlideArray)
                         .then(resolve())
                     })
 
@@ -234,7 +256,7 @@
                         .then(resolve())
                     })
                 } else {    
-                    slide('prev').then(resolve())
+                    slide('prev').then(()=>{console.log('slidePREVresolve');resolve()})
                 }
 
             })
@@ -246,14 +268,14 @@
 
             return new Promise((resolve, reject) => {
 
-                if(pos === (slideArray.length)-(slideOnScreen-1)-2) {
+                if(pos === (activeSlideArray.length)-(slideOnScreen-1)-2) {
                     teleport('next')
                     .then(() => {
                         slide('next')
                         .then(resolve())
                     })
                 } else {
-                    slide('next').then(()=>{console.log('slideresolve');resolve()})
+                    slide('next').then(()=>{console.log('slideNEXTresolve');resolve()})
                 }
 
             })
@@ -273,13 +295,15 @@
                 }
                 currentScrollAmount = -(pos)*(amount*100);
 
-                for(let i = 0; i < slideArray.length; i++) {
-                    doTranslate(slideArray[i], currentScrollAmount, '%', offset, 'px')
+                for(let i = 0; i < activeSlideArray.length; i++) {
+                    doTranslate(activeSlideArray[i], currentScrollAmount, '%', offset, 'px')
 
-                    if(i === slideArray.length-1) {
+                    if(i === activeSlideArray.length-1) {
                         if(slideIsAnimated === true) {
+                            console.log('slide400')
                             setTimeout(function(){resolve()},(slideTransitionTime*1000),resolve)
                         } else {
+                            console.log('slide100')
                             setTimeout(function(){resolve()},18,resolve)
                         }
                     }
@@ -294,17 +318,43 @@
             element.style = 'transform:translateX(calc('+amount+amountUnit+' + '+offset+offsetUnit+'))'
         }
 
+
         //inserts all css styling need for the carousel to work.
         //this method also allows css properties to be changed on the fly by javascript variables.
         function buildStyles() {
+
+            let screenStyles = ``
+
+            if(breakpoints.length) {
+
+                for(let i = 0; i < breakpoints.length; i++) {
+
+                    screenStyles += `
+                        @media screen and (min-width: `+breakpoints[i].size+`px) {
+                            .dup-carousel-item {
+                                width:calc(100% / `+breakpoints[i].slideOnScreen+`) !important;
+                            }
+                        }`
+
+                }
+
+            } else {
+
+                screenStyles = `
+                    @media screen and (min-width: 0px) {
+                        .dup-carousel-item {
+                            width:calc(100% / `+slideOnScreen+`) !important;
+                        }
+                    }`
+
+            }
 
             document.head.insertAdjacentHTML("beforeend", `
                     <style>
                         body{margin:0;overflowX:hidden;}
                         
-                        .dup-carousel-item {
-                            width:calc(100% / `+slideOnScreen+`) !important;
-                        }
+                        `+screenStyles+`
+
                         .dup-slide {
                             -webkit-transition: transform `+slideTransitionTime+`s ease-in-out !important;
                             -moz-transition: transform `+slideTransitionTime+`s ease-in-out !important;
@@ -317,21 +367,23 @@
                             white-space:nowrap;
                             overflow:hidden;
                         }
-
+                        .dup-carousel-inner {
+                            font-size: 0px;
+                        }
                         .dup-carousel-item {
-                            margin-right:-4px;
+                            font-size: 32px;
                             display:inline-block;
                             background-color:red;
                             height:200px;
-                            border:8px black solid;
+                            outline:8px solid black;
                             transition: none;
                         }
                     </style>
                 `)
         }
 
-        //builds inner container listeners for the use
         async function buildInnerContainerListeners() {
+
             innerContainer.addEventListener("touchstart", dragStart, true);
             innerContainer.addEventListener("touchmove", drag, true);
             innerContainer.addEventListener("touchend", dragEnd, true);
@@ -340,6 +392,7 @@
             innerContainer.addEventListener("mousemove", drag, true);
             innerContainer.addEventListener("mouseup", dragEnd, true);
             innerContainer.addEventListener("mouseleave", dragEnd);
+            
         }
 
         async function buildControlListeners() {
@@ -361,21 +414,61 @@
         }
 
         //constructor function that handles the initial cloning of slides
-        async function buildSlides() {
+        async function buildSlides(reset=false) {
 
-            let cloned = slideArray[slideArray.length-1].cloneNode(true);
+            if(reset === true) {
+                innerContainer.innerHTML = ''
+                for(let i = 0; i < initalSlideArray.length; i++) {
+                    innerContainer.appendChild(initalSlideArray[i])
+                }
+            }
+
+            let cloned = initalSlideArray[initalSlideArray.length-1].cloneNode(true);
             innerContainer.prepend(cloned)
 
             for(let i = 0; i < slideOnScreen; i++) {
-                cloned = slideArray[i].cloneNode(true)
+                cloned = initalSlideArray[i].cloneNode(true)
                 innerContainer.appendChild(cloned)
             }
-            slideArray = document.getElementsByClassName('dup-carousel-item');
+
+            activeSlideArray = document.querySelectorAll('.dup-carousel-item');
+
             pos=1
-            await slide();
-            setTimeout(addSlideAnimation, 1, slideArray)
-            return
+
+            slide()
+            .then(() => {
+                addSlideAnimation(activeSlideArray)
+                return
+            })
+            
         }
+
+        //handles switching to variables and calling for rebuilding slides on new breakpoints
+        function checkBreakpoints() {
+
+            browserWidth = document.body.clientWidth;
+            console.log('browserWidth', browserWidth)
+
+            if (breakpoints.length) {
+
+                for(let i = 0; i < breakpoints.length; i++) {
+
+                    if (browserWidth >= breakpoints[i].size) {
+
+                        slideOnScreen = breakpoints[i].slideOnScreen
+
+                    }
+
+                }
+
+            }
+
+            buildSlides(true)
+
+        }
+
+        //listens for window resizing
+        window.addEventListener('resize', checkBreakpoints);
 
         buildStyles();
         buildInnerContainerListeners();
